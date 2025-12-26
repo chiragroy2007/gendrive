@@ -90,7 +90,5 @@ If self-hosting, your agents need to know where your server is.
 *   `GET /api/devices`: Retrieve specific telemetry and status for all connected nodes.
 
 ---
-
-<img width="1204" height="605" alt="image" src="https://github.com/user-attachments/assets/e08c5990-b7d0-4170-a1cc-0aaa5b5961ad" />
-
+Test the app at https://drive.chirag404.me !!
 <img width="1187" height="902" alt="image" src="https://github.com/user-attachments/assets/05cb3bc8-bebc-4972-923e-6cecbd8f3b41" />
