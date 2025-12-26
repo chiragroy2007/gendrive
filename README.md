@@ -8,12 +8,6 @@ GenDrive is a distributed file system implementation that aggregates storage cap
 
 The system is designed with a focus on resilience, data sovereignty, and minimal configuration, acting as a private "cloud" infrastructure on your own hardware.
 
-<img width="1204" height="605" alt="image" src="https://github.com/user-attachments/assets/e08c5990-b7d0-4170-a1cc-0aaa5b5961ad" />
-
-<img width="1187" height="902" alt="image" src="https://github.com/user-attachments/assets/05cb3bc8-bebc-4972-923e-6cecbd8f3b41" />
-
-
-
 ---
 
 ### System Architecture
@@ -94,3 +88,9 @@ If self-hosting, your agents need to know where your server is.
 *   `GET /api/download?id={file_id}`: Reassemble chunks from the mesh into the original file.
 *   `DELETE /api/delete?id={file_id}`: Remove file metadata and trigger garbage collection on storage nodes.
 *   `GET /api/devices`: Retrieve specific telemetry and status for all connected nodes.
+
+---
+
+<img width="1204" height="605" alt="image" src="https://github.com/user-attachments/assets/e08c5990-b7d0-4170-a1cc-0aaa5b5961ad" />
+
+<img width="1187" height="902" alt="image" src="https://github.com/user-attachments/assets/05cb3bc8-bebc-4972-923e-6cecbd8f3b41" />
