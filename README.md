@@ -8,64 +8,80 @@ GenDrive is a distributed file system implementation that aggregates storage cap
 The system is designed with a focus on resilience, data sovereignty, and minimal configuration, acting as a private "cloud" infrastructure on your own hardware.
 
 ViewDemo: https://drive.chirag404.me
+
 <img width="1500" height="900" alt="image" src="https://github.com/user-attachments/assets/91f2c590-5868-4d82-b792-2750d385f38b" />
 
 
 ---
-
 ### System Architecture
 
-The technical architecture constitutes two primary planes:
+The system operates on a split-plane architecture designed for privacy and resilience.
 
-*   **Control Plane (Orchestrator)**: A centralized Go-based server responsible for metadata management, user authentication, and cluster orchestration. It maintains a ledger of file-to-chunk mappings and device states (SQLite) but does not persistently store user data.
-*   **Data Plane (Storage Mesh)**: A network of lightweight agents running on distributed nodes. These agents handle standard I/O operations, managing the storage and retrieval of encrypted data chunks.
-*   **Relay Protocol**: A real-time command-and-control channel that facilitates NAT traversal and orchestrates peer-to-peer data transfer commands (Store, Retrieve, Delete).
+*   **Control Plane (Orchestrator)**
+    A lightweight central server that manages authentication, metadata, and cluster health. It maintains a ledger of file locations but never stores actual file data or encryption keys.
+
+*   **Data Plane (Storage Mesh)**
+    Your interconnected devices act as distributed storage nodes. Files are encrypted client-side, split into shards, and distributed across the mesh.
+
+*   **Relay Protocol**
+    A custom protocol tailored for high-throughput peer-to-peer data transfer, capable of traversing complex network topologies (NATs) without manual port forwarding.
 
 ### Core Capabilities
 
-*   **Unified Cloud Filesystem**: Abstraction of physical storage devices into a single virtual drive locatable via the web dashboard.
-*   **Automated Distribution**: Files are ingested, sharded, and mathematically distributed across available nodes based on capacity and load metrics.
-*   **Dynamic Rebalancing**: The orchestrator continuously monitors node health and storage utilization, automatically migrating chunks from over-utilized to under-utilized nodes to ensure optimal cluster performance.
-*   **Industrial Dashboard**: A minimal, performance-first web interface for fleet management, file operations, and real-time system introspection.
+*   **Unified Filesystem**: Aggregates storage capacity from disparate devices into a single, addressable virtual drive.
+*   **Zero-Knowledge Encryption**: Data is encrypted using AES-256 before leaving the source device. The orchestrator handles only opaque binary blobs.
+*   **Dynamic Rebalancing**: The system continuously monitors node health and storage utilization, automatically migrating data to ensure optimal distribution and redundancy.
+*   **Industrial Interface**: A low-latency, strictly functional web dashboard for fleet management and file operations.
 
-### 🌍 Public Instance (Community Mesh)
-You don't need to host the server yourself! You can join the public community mesh.
-1. Access the dashboard: **[drive.chirag404.me](http://drive.chirag404.me)**.
-2. Sign up / Login.
-3. Run the installer on your nodes (it's pre-configured for this domain).
+### Supported Agents
+
+The agent binary is designed to be portable and dependency-free.
+
+*   **Windows**: Recommended for primary storage nodes. Installing via the provided PowerShell script handles persistence automatically.
+*   **Linux / macOS**: Supported for headless operation on servers, VPS instances, or Raspberry Pis. Requires manual binary execution.
 
 ---
 
-### 🖥️ Self-Hosting (Ubuntu Server)
-If you prefer total control, you can host the Control Plane on your own VPS (e.g., DigitalOcean, AWS, Hetzner).
+### Community Registry
 
-**1. Build & Run**
+You can join the public community mesh to start using the system immediately without infrastructure setup.
+
+1.  **Register**: Create an account at [drive.chirag404.me](http://drive.chirag404.me).
+2.  **Deploy**: Run the installer command on your devices to link them to your account.
+3.  **Use**: Your local storage is now part of your private cloud.
+
+---
+
+### Self-Hosting Guide
+
+For complete control over the metadata and orchestration layer, you can host the server on any standard Linux VPS.
+
+**1. Deployment**
+
+Clone the repository and build the server binary.
+
 ```bash
-# Clone the repo
 git clone https://github.com/chirag404/gendrive.git
 cd gendrive/server
-
-# Build
 go build -o server
-
-# Run (Recommendation: Use Systemd or Docker)
 ./server
 ```
 
-**2. Configuring the Agent**
-If self-hosting, your agents need to know where your server is.
-*   **Option A**: Edit `install.ps1` to set `$BaseUrl = "http://YOUR_SERVER_IP:8080"`.
-*   **Option B**: Run the agent manually:
-    ```powershell
-    ./agent.exe -server "http://YOUR_SERVER_IP:8080"
-    ```
+**2. Agent Configuration**
+
+To connect agents to your self-hosted instance, direct the agent to your server's IP address.
+
+*   **PowerShell**: Update the `$BaseUrl` variable in `install.ps1`.
+*   **Manual**: Run the agent with the server flag:
+    `./agent.exe -server "http://YOUR_IP:8080"`
 
 ### API Reference
 
-*   `POST /api/upload`: Ingest a file, shard it, and distribute chunks to the mesh.
-*   `GET /api/download?id={file_id}`: Reassemble chunks from the mesh into the original file.
-*   `DELETE /api/delete?id={file_id}`: Remove file metadata and trigger garbage collection on storage nodes.
-*   `GET /api/devices`: Retrieve specific telemetry and status for all connected nodes.
+*   `POST /api/upload`: Accepts a file stream, performs sharding, and distributes chunks to active nodes.
+*   `GET /api/download`: Retrieval endpoint that reassembles distributed chunks into the original file.
+*   `DELETE /api/delete`: Removes file metadata and issues garbage collection commands to storage nodes.
+*   `GET /api/devices`: returns telemetry data including storage usage, connection status, and IP info.
 
 ---
+
 Test the app at https://drive.chirag404.me !!
