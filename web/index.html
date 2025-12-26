@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GenDrive | Dashboard</title>
+    <meta name="description"
+        content="A distributed peer-to-peer storage system aggregating local device storage into a unified cloud filesystem.">
+
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #ffffff;
+            --bg-secondary: #f4f4f4;
+            --border: #e0e0e0;
+            --text: #1a1a1a;
+            --text-muted: #666;
+            --accent: #222;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            border-right: 1px solid var(--border);
+            background: var(--bg-secondary);
+            display: flex;
+            flex-direction: column;
+            padding: 30px;
+        }
+
+        .nav-item {
+            padding: 12px 16px;
+            margin-bottom: 4px;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            transition: 0.1s;
+            border-left: 2px solid transparent;
+        }
+
+        .nav-item:hover {
+            background: #e8e8e8;
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: #fff;
+            color: var(--text);
+            font-weight: 500;
+            border-left: 2px solid var(--accent);
+            border-bottom: 1px solid var(--border);
+            border-top: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+        }
+
+        /* Main */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg);
+        }
+
+        .header {
+            height: 70px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 40px;
+            justify-content: space-between;
+            background: #fff;
+        }
+
+        .page-title {
+            font-weight: 600;
+            font-size: 1.2rem;
+            letter-spacing: -0.5px;
+        }
+
+        .content {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .content.active {
+            display: block;
+        }
+
+        /* Components */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            border: 1px solid var(--border);
+            padding: 30px;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            transition: 0.2s;
+        }
+
+        .card:hover {
+            border-color: #999;
+        }
+
+        .card h3 {
+            margin: 0 0 10px 0;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .card p {
+            margin: 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: #fff;
+            border: none;
+            padding: 12px 24px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: 0.2s;
+        }
+
+        .btn:hover {
+            background: #000;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        .btn-outline:hover {
+            border-color: #000;
+        }
+
+        /* Add Device Button */
+        .add-device-btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            text-align: center;
+            height: 100%;
+        }
+
+        .add-device-btn:hover {
+            background: #eef;
+            border-color: #aaf;
+        }
+
+        .add-device-icon {
+            font-size: 2rem;
+            margin-bottom: 15px;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(2px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal {
+            background: #fff;
+            width: 500px;
+            max-width: 90%;
+            border: 1px solid #000;
+            padding: 40px;
+            box-shadow: 10px 10px 0px rgba(0, 0, 0, 0.1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 30px;
+        }
+
+        .modal-close {
+            cursor: pointer;
+            font-size: 1.5rem;
+            line-height: 1;
+        }
+
+        .step {
+            margin-bottom: 20px;
+            padding-left: 20px;
+            border-left: 2px solid var(--border);
+        }
+
+        .step.active {
+            border-color: #000;
+        }
+
+        .step-title {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border);
+            font-family: inherit;
+            margin-top: 10px;
+            background: var(--bg-secondary);
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #000;
+            background: #fff;
+        }
+
+        /* Tables */
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .table th {
+            text-align: left;
+            padding: 15px;
+            background: var(--bg-secondary);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .table td {
+            padding: 15px;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.95rem;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            background: #eee;
+            color: #666;
+            font-weight: 600;
+        }
+
+        .status-badge.online {
+            background: #cfc;
+            color: #050;
+        }
+
+        .upload-zone {
+            border: 1px dashed #999;
+            background: #fafafa;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            margin-bottom: 30px;
+        }
+
+        .upload-zone:hover {
+            background: #f0f0f0;
+            border-color: #000;
+        }
+
+        /* Stats Badge */
+        .stat-card {
+            background: #222;
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stat-val {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="sidebar">
+        <div style="height: 40px;"></div>
+        <div class="nav-item active" onclick="nav('overview')">Overview</div>
+        <div class="nav-item" onclick="nav('files')">Files</div>
+        <div class="nav-item" onclick="nav('devices')">Network</div>
+        <div style="flex:1"></div>
+        <div class="nav-item" onclick="logout()">LOGOUT</div>
+    </div>
+
+    <div class="main">
+        <div class="header">
+            <div class="page-title" id="pageTitle">Overview</div>
+            <div id="userEmail" style="font-family: monospace;">user@gendrive.io</div>
+        </div>
+
+        <!-- OVERVIEW -->
+        <div id="overview" class="content active">
+            <h2 style="margin-top:0">Snapshot</h2>
+            <div class="grid">
+                <div class="stat-card">
+                    <div class="stat-val" id="fileCount">0</div>
+                    <div class="stat-label">Files Stored</div>
+                </div>
+                <div class="stat-card" style="background: #444;">
+                    <div class="stat-val" id="deviceCount">0</div>
+                    <div class="stat-label">Active Nodes</div>
+                </div>
+                <div class="add-device-btn" onclick="openModal()">
+                    <div class="add-device-icon">+</div>
+                    <div style="font-weight: 600;">ADD NEW DEVICE</div>
+                    <p style="font-size: 0.8rem; margin-top: 5px;">Expand your storage mesh</p>
+                </div>
+            </div>
+
+            <h3>Recent Activity</h3>
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>File Name</th>
+                        <th>Size</th>
+                        <th>Date</th>
+                        <th style="text-align:right">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="recentTable">
+                    <tr>
+                        <td colspan="4">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- FILES -->
+        <div id="files" class="content">
+            <div class="upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                <div style="font-size: 1.1rem; font-weight: 500;">CLICK TO UPLOAD</div>
+                <div style="color: #666; margin-top: 5px;">or drag files here</div>
+                <input type="file" id="fileInput" style="display: none">
+            </div>
+            <div id="uploadStatus" style="margin-bottom:20px; font-weight:600;"></div>
+
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Size</th>
+                        <th>Synced At</th>
+                        <th style="text-align:right">Access</th>
+                    </tr>
+                </thead>
+                <tbody id="fileTable">
+                    <tr>
+                        <td colspan="4">Loading...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- DEVICES -->
+        <div id="devices" class="content">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3 style="margin:0">Network Nodes</h3>
+                <button class="btn" onclick="openModal()">+ Add Node</button>
+            </div>
+            <div class="grid" id="cleanDeviceList">
+                <!-- Cards injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL -->
+    <div class="modal-overlay" id="addDeviceModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 style="margin:0">Connect a Device</h2>
+                <div class="modal-close" onclick="closeModal()">✕</div>
+            </div>
+
+            <div class="step">
+                <div class="step-title">Step 1: Run Installer</div>
+                <div style="color: #666; font-size: 0.9rem;">Open PowerShell on your new device and run:</div>
+                <div style="background: #eee; padding: 10px; font-family: monospace; margin-top: 10px; cursor: pointer; border: 1px solid #ccc;"
+                    onclick="copyCmd(this)">
+                    irm
+                    <script>document.write(window.location.origin)</script>/install.ps1 | iex
+                </div>
+            </div>
+
+            <div class="step active">
+                <div class="step-title">Step 2: Enter Identity</div>
+                <div style="color: #666; font-size: 0.9rem; margin-bottom: 10px;">Enter the details displayed on the
+                    device console.</div>
+                <form id="claimForm">
+                    <input id="devID" placeholder="Device ID" required>
+                    <input id="devToken" placeholder="Claim Token" required>
+                    <button type="submit" class="btn" style="width: 100%; margin-top: 20px;">VERIFY & CONNECT</button>
+                </form>
+                <div id="claimMsg" style="margin-top: 15px; font-weight: 600;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Navigation ---
+        function nav(page) {
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            document.querySelectorAll('.content').forEach(el => el.classList.remove('active'));
+            document.getElementById(page).classList.add('active');
+            document.getElementById('pageTitle').innerText = page.toUpperCase();
+
+            if (page === 'files') loadFiles();
+            if (page === 'devices') loadDevices();
+            if (page === 'overview') { loadFiles(); loadDevices(); }
+        }
+
+        // --- Auth ---
+        fetch('/api/me').then(async r => {
+            if (r.status === 401) window.location.href = '/login.html';
+            else {
+                const u = await r.json();
+                document.getElementById('userEmail').innerText = u.email || u.id;
+            }
+        });
+
+        // --- Data ---
+        async function loadFiles() {
+            try {
+                const res = await fetch('/api/files');
+                const files = res.ok ? await res.json() : [];
+                document.getElementById('fileCount').innerText = files.length || 0;
+
+                const rows = (files || []).map(f => `
+                    <tr>
+                        <td><span style="font-weight: 500;">${f.path}</span></td>
+                        <td>${formatBytes(f.size)}</td>
+                        <td style="color:#666">${new Date(f.updated_at).toLocaleDateString()}</td>
+                        <td style="text-align:right">
+                            <a href="/api/download?id=${f.id}" class="btn-outline" style="text-decoration:none; padding:6px 12px; font-size:0.8rem; display:inline-block; margin-right:5px;">GET</a>
+                            <button onclick="deleteFile('${f.id}')" class="btn-outline" style="padding:6px 12px; font-size:0.8rem; cursor:pointer; background:#fff;">DEL</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                document.getElementById('fileTable').innerHTML = rows || '<tr><td colspan="4">No files.</td></tr>';
+                document.getElementById('recentTable').innerHTML = rows ? rows.split('</tr>').slice(0, 5).join('</tr>') : '<tr><td colspan="4">No recent activity.</td></tr>';
+            } catch (e) { }
+        }
+
+        async function deleteFile(id) {
+            if (!confirm("Permanently delete this file?")) return;
+            try {
+                const res = await fetch(`/api/delete?id=${id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    loadFiles();
+                } else {
+                    alert("Delete failed.");
+                }
+            } catch (e) { alert("Error deleting file."); }
+        }
+
+        async function loadDevices() {
+            try {
+                const res = await fetch('/api/devices');
+                const devs = res.ok ? await res.json() : [];
+                document.getElementById('deviceCount').innerText = (devs || []).filter(d => d.online).length;
+
+                const grid = document.getElementById('cleanDeviceList');
+                grid.innerHTML = (devs || []).map(d => `
+                    <div class="card" style="border-top: 4px solid ${d.online ? '#000' : '#ccc'};">
+                        <h3>${d.name}</h3>
+                        <p style="font-family: monospace; font-size: 0.8rem; margin-bottom: 10px;">${d.id}</p>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top: auto;">
+                            <span class="status-badge ${d.online ? 'online' : ''}">${d.online ? 'ONLINE' : 'OFFLINE'}</span>
+                            <span style="font-size: 0.8rem; color: #999;">${new Date(d.last_seen).toLocaleTimeString()}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (e) { }
+        }
+
+        // --- Modal ---
+        function openModal() { document.getElementById('addDeviceModal').style.display = 'flex'; }
+        function closeModal() { document.getElementById('addDeviceModal').style.display = 'none'; }
+
+        document.getElementById('claimForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const msg = document.getElementById('claimMsg');
+            msg.innerText = "Verifying...";
+            const res = await fetch('/api/devices/claim', {
+                method: 'POST',
+                body: JSON.stringify({
+                    device_id: document.getElementById('devID').value,
+                    claim_token: document.getElementById('devToken').value
+                })
+            });
+            if (res.ok) {
+                msg.innerText = "CONNECTED!";
+                msg.style.color = "green";
+                setTimeout(() => { closeModal(); loadDevices(); }, 1500);
+            } else {
+                msg.innerText = "FAILED. Invalid Token.";
+                msg.style.color = "red";
+            }
+        });
+
+        // --- Upload ---
+        document.getElementById('fileInput').onchange = async (e) => {
+            if (!e.target.files.length) return;
+            const status = document.getElementById('uploadStatus');
+            status.innerText = "UPLOADING...";
+            const fd = new FormData(); fd.append('file', e.target.files[0]);
+
+            const res = await fetch('/api/upload', { method: 'POST', body: fd });
+            if (res.ok) {
+                status.innerText = "UPLOAD COMPLETE.";
+                setTimeout(() => status.innerText = "", 2000);
+                loadFiles();
+            } else { status.innerText = "ERROR."; }
+        };
+
+        // --- Utils ---
+        function copyCmd(el) {
+            const r = document.createRange(); r.selectNode(el);
+            window.getSelection().removeAllRanges(); window.getSelection().addRange(r);
+            document.execCommand('copy'); alert("Copied!");
+        }
+        function formatBytes(a, b = 2) { if (!+a) return "0 B"; const c = 0 > b ? 0 : b, d = Math.floor(Math.log(a) / Math.log(1024)); return `${parseFloat((a / Math.pow(1024, d)).toFixed(c))} ${["B", "KB", "MB", "GB"][d]}` }
+        function logout() { document.cookie = "session_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC"; window.location.href = '/login.html'; }
+
+        // Init
+        loadFiles(); loadDevices(); setInterval(loadDevices, 5000);
+    </script>
+</body>
+
+</html>

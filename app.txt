@@ -1,0 +1,15 @@
+Project setup & scope
+Create a new VS Code project for a single-user P2P Drive application consisting of two components: (1) a lightweight control server and (2) a cross-platform device agent. Use Go as the primary language. Clearly separate the repository into /server and /agent directories. The goal of this project is to allow multiple devices owned by the same user to form a private storage mesh. The control server must never store file data; it should only handle authentication, device registration, metadata, and heartbeats. Assume a small scale (2–5 devices) and prioritize correctness, clarity, and security over performance.
+
+Control server responsibilities
+Implement the control server first. It should expose simple REST or gRPC APIs for: user login (single user is fine, even hardcoded initially), device registration with a generated public key, periodic device heartbeats, and metadata management. Metadata must map files → chunks → device IDs. Use SQLite or PostgreSQL for metadata storage. The server should maintain device online/offline state based on heartbeats and expose endpoints for agents to query where chunks are located. Do not implement any file upload or download logic on the server; treat it strictly as a coordination and metadata service.
+
+Device agent core logic
+Implement the device agent as a CLI or background process. On startup, it should generate a device ID and keypair, register itself with the control server, and send regular heartbeats. The agent must manage a local chunk store on disk and a small local database for tracking which chunks it holds. Implement file upload by chunking files into fixed-size chunks (e.g., 8 MB), encrypting each chunk client-side (AES-GCM), selecting peer devices based on metadata from the server, and transferring chunks via a simple relay through the control server (direct P2P optimization can be skipped). Each uploaded file should result in metadata updates on the control server.
+
+File retrieval, sync, and offline handling
+Implement file download by querying metadata from the control server, fetching required chunks from available peer devices, decrypting them locally, and reassembling the file. Handle device offline scenarios gracefully: if a device hosting some chunks is offline, fetch from another replica if available. Do not implement aggressive rebalancing yet; replication factor can be fixed at 2. Use a simple “last write wins” rule for conflicts. When a device comes back online, allow it to sync missing chunks based on metadata comparisons.
+
+Minimal dashboard, testing, and constraints
+Add a minimal web dashboard (or CLI output) that shows registered devices, their online/offline status, stored files, and chunk distribution. Focus on observability and logs so behavior is easy to debug. Write basic integration tests for file upload/download across two simulated devices. Do not add advanced features like erasure coding, multi-user sharing, NAT traversal, or monetization. Keep the code modular and well-documented so the system can later evolve into a more advanced distributed storage platform.
+

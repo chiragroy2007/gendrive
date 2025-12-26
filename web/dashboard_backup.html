@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>GenDrive Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f9f9f9;
+        }
+
+        header {
+            background: #333;
+            color: white;
+            padding: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+
+        .container {
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .panel {
+            flex: 1;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            margin-top: 0;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+
+        /* Devices */
+        .device-list {
+            margin-top: 10px;
+        }
+
+        .device-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .status-on {
+            color: green;
+            font-weight: bold;
+        }
+
+        .status-off {
+            color: gray;
+        }
+
+        /* Forms */
+        .form-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        input {
+            padding: 8px;
+            flex: 1;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 8px 15px;
+            cursor: pointer;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+
+        /* Command Box */
+        .cmd-box {
+            background: #2d2d2d;
+            color: #0f0;
+            font-family: monospace;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <h1>GenDrive Web</h1>
+        <button onclick="logout()" style="background: transparent; border: 1px solid white;">Logout</button>
+    </header>
+
+    <div style="padding: 20px; max-width: 800px; margin: 0 auto;">
+        <!-- Install Info -->
+        <div class="cmd-box">
+            To install Agent: <br>
+            <span style="user-select: all;">irm http://localhost:8080/install.ps1 | iex</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Devices Panel -->
+        <div class="panel">
+            <h2>My Devices</h2>
+            <div id="deviceList" class="device-list">Loading...</div>
+
+            <h3>Claim A Device</h3>
+            <form id="claimForm">
+                <input type="text" id="devID" placeholder="Device ID" required>
+                <input type="text" id="devToken" placeholder="Claim Token" required>
+                <button type="submit">Claim</button>
+            </form>
+            <p id="claimMsg"></p>
+        </div>
+
+        <!-- Drive Panel -->
+        <div class="panel">
+            <h2>My Drive</h2>
+            <p>Upload files to your distributed mesh.</p>
+            <div class="form-row">
+                <input type="file" id="fileInput">
+                <button onclick="uploadFile()">Upload</button>
+            </div>
+            <div id="uploadStatus"></div>
+
+            <h3>Files</h3>
+            <div id="fileList">Coming soon...</div>
+        </div>
+    </div>
+
+    <script>
+        // Auth Check
+        async function checkAuth() {
+            const res = await fetch('/api/me');
+            if (res.status === 401) window.location.href = '/login.html';
+        }
+        checkAuth();
+
+        // Load Devices
+        async function loadDevices() {
+            const res = await fetch('/api/devices');
+            if (res.ok) {
+                const devs = await res.json();
+                const container = document.getElementById('deviceList');
+                if (devs && devs.length > 0) {
+                    container.innerHTML = devs.map(d => `
+                        <div class="device-item">
+                            <span>${d.name || d.id}</span>
+                            <span class="${d.online ? 'status-on' : 'status-off'}">${d.online ? 'Online' : 'Offline'}</span>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = "<p>No devices linked.</p>";
+                }
+            }
+        }
+        loadDevices();
+
+        // Claim Form
+        document.getElementById('claimForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('devID').value;
+            const token = document.getElementById('devToken').value;
+
+            const res = await fetch('/api/devices/claim', {
+                method: 'POST',
+                body: JSON.stringify({ device_id: id, claim_token: token })
+            });
+
+            if (res.ok) {
+                document.getElementById('claimMsg').innerText = "Device claimed successfully!";
+                document.getElementById('claimMsg').style.color = "green";
+                loadDevices();
+                document.getElementById('claimForm').reset();
+            } else {
+                document.getElementById('claimMsg').innerText = "Claim failed. Check ID/Token.";
+                document.getElementById('claimMsg').style.color = "red";
+            }
+        });
+
+        function logout() {
+            document.cookie = "session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            window.location.href = '/login.html';
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login | GenDrive</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .box {
+            background: #fff;
+            width: 400px;
+            padding: 50px;
+            border: 1px solid #000;
+            box-shadow: 15px 15px 0px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            margin: 0 0 30px 0;
+            font-weight: 700;
+            font-size: 2rem;
+            letter-spacing: -1px;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            font-family: inherit;
+            box-sizing: border-box;
+            background: #fafafa;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #000;
+            background: #fff;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            background: #000;
+            color: #fff;
+            border: none;
+            font-weight: 600;
+            text-transform: uppercase;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: 0.2s;
+        }
+
+        button:hover {
+            background: #333;
+        }
+
+        .foot {
+            margin-top: 20px;
+            font-size: 0.9rem;
+            color: #666;
+            text-align: center;
+        }
+
+        a {
+            color: #000;
+            font-weight: 600;
+            text-decoration: none;
+            border-bottom: 2px solid #ccc;
+        }
+
+        a:hover {
+            border-color: #000;
+        }
+
+        #error {
+            color: red;
+            display: none;
+            margin-top: 15px;
+            text-align: center;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="box">
+        <h1>LOGIN_</h1>
+        <form id="loginForm">
+            <input type="email" id="email" placeholder="EMAIL" required>
+            <input type="password" id="password" placeholder="PASSWORD" required>
+            <button type="submit">ACCESS SYSTEM</button>
+        </form>
+        <div id="error">INVALID CREDENTIALS</div>
+        <div class="foot">
+            NO ACCOUNT? <a href="/signup.html">INITIALIZE</a>
+        </div>
+    </div>
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const res = await fetch('/api/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+            if (res.ok) window.location.href = '/index.html';
+            else document.getElementById('error').style.display = 'block';
+        });
+    </script>
+</body>
+
+</html>

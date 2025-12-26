@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent Dashboard</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+        }
+
+        .section {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+
+        input,
+        button {
+            padding: 5px;
+            margin: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>P2P Drive Agent</h1>
+
+    <div class="section">
+        <h2>Upload to Drive</h2>
+        <p>Upload a local file. The system will automatically chunk and replicate it across the mesh.</p>
+
+        <label>File Path (on Agent's machine):</label>
+        <input type="text" id="filePath" placeholder="e.g. ./test.txt" style="width: 300px;">
+        <br>
+
+        <button onclick="uploadFile()">Upload</button>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        async function uploadFile() {
+            const filePath = document.getElementById('filePath').value;
+            const status = document.getElementById('status');
+
+            if (!filePath) {
+                status.innerText = "Please enter file path";
+                return;
+            }
+
+            status.innerText = "Requesting upload...";
+
+            try {
+                const formData = new FormData();
+                formData.append('file_path', filePath);
+
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: new URLSearchParams(formData)
+                });
+
+                const text = await res.text();
+                status.innerText = text;
+            } catch (e) {
+                status.innerText = "Error: " + e.message;
+            }
+        }
+    </script>
+</body>
+
+</html>
