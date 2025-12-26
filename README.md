@@ -4,9 +4,15 @@
 ![License](https://img.shields.io/badge/license-MIT-000000.svg?style=for-the-badge)
 ![Go](https://img.shields.io/badge/built_with-GO-00ADD8.svg?style=for-the-badge&logo=go&logoColor=white)
 
-GenDrive is a distributed file system implementation that aggregates storage capacity from multiple disparate devices—personal computers, servers, and edge nodes—into a single, unified cloud storage layer. It eliminates the need for centralized data silos by leveraging underutilized local storage across a private network mesh.
+GenDrive is a distributed file system implementation that aggregates storage capacity from multiple disparate devices, personal computers, servers, and edge nodes, into a single, unified cloud storage layer. It eliminates the need for centralized data silos by leveraging underutilized local storage across a private network mesh.
 
 The system is designed with a focus on resilience, data sovereignty, and minimal configuration, acting as a private "cloud" infrastructure on your own hardware.
+
+<img width="1204" height="605" alt="image" src="https://github.com/user-attachments/assets/e08c5990-b7d0-4170-a1cc-0aaa5b5961ad" />
+
+<img width="1187" height="902" alt="image" src="https://github.com/user-attachments/assets/05cb3bc8-bebc-4972-923e-6cecbd8f3b41" />
+
+
 
 ---
 
