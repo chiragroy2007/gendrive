@@ -1,5 +1,4 @@
 # GenDrive
-> Distributed Cloud Storage System
 
 ![License](https://img.shields.io/badge/license-MIT-000000.svg?style=for-the-badge)
 ![Go](https://img.shields.io/badge/built_with-GO-00ADD8.svg?style=for-the-badge&logo=go&logoColor=white)
@@ -9,6 +8,8 @@ GenDrive is a distributed file system implementation that aggregates storage cap
 The system is designed with a focus on resilience, data sovereignty, and minimal configuration, acting as a private "cloud" infrastructure on your own hardware.
 
 ViewDemo: https://drive.chirag404.me
+<img width="1500" height="900" alt="image" src="https://github.com/user-attachments/assets/91f2c590-5868-4d82-b792-2750d385f38b" />
+
 
 ---
 
@@ -68,4 +69,3 @@ If self-hosting, your agents need to know where your server is.
 
 ---
 Test the app at https://drive.chirag404.me !!
-<img width="1187" height="902" alt="image" src="https://github.com/user-attachments/assets/05cb3bc8-bebc-4972-923e-6cecbd8f3b41" />
