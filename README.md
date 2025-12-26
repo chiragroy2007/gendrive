@@ -27,31 +27,6 @@ The technical architecture constitutes two primary planes:
 *   **Dynamic Rebalancing**: The orchestrator continuously monitors node health and storage utilization, automatically migrating chunks from over-utilized to under-utilized nodes to ensure optimal cluster performance.
 *   **Industrial Dashboard**: A minimal, performance-first web interface for fleet management, file operations, and real-time system introspection.
 
-### Quick Start Guide
-
-#### 1. Deploy the Orchestrator
-The control server manages the swarm. It requires Go installed on the host machine.
-
-```bash
-cd server
-go run main.go
-# Server listens on port 8080 by default.
-```
-
-#### 2. Initialize a Storage Node
-Deploy the agent on any Windows machine to join it to the storage mesh.
-
-**PowerShell (Admin recommended):**
-```powershell
-irm http://localhost:8080/install.ps1 | iex
-```
-
-#### 3. Cluster Configuration
-1.  Access the dashboard at `http://localhost:8080`.
-2.  Navigate to the **Network** tab.
-3.  Enter the `Device ID` and `Claim Token` displayed on the agent's console to cryptographically link the node to your cluster.
-4.  Once verified, the node's storage capacity is immediately available to the pool.
-
 ### 🌍 Public Instance (Community Mesh)
 You don't need to host the server yourself! You can join the public community mesh.
 1. Access the dashboard: **[drive.chirag404.me](http://drive.chirag404.me)**.
