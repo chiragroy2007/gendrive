@@ -54,10 +54,17 @@ func DecryptChunk(data []byte, key []byte) ([]byte, error) {
 }
 
 // UploadChunk sends a chunk to a peer via Relay.
-func UploadChunk(serverURL string, peerDeviceID string, sessionID string, data []byte) error {
+func UploadChunk(client *http.Client, serverURL string, peerDeviceID string, sessionID string, data []byte) error {
 	// POST /relay/send?to=PEER&session=SESSION
 	url := fmt.Sprintf("%s/relay/send?to=%s&session=%s", serverURL, peerDeviceID, sessionID)
-	resp, err := http.Post(url, "application/octet-stream", bytes.NewReader(data))
+	
+	req, err := http.NewRequest("POST", url, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -70,10 +77,10 @@ func UploadChunk(serverURL string, peerDeviceID string, sessionID string, data [
 }
 
 // DownloadChunk requests a chunk from a peer via Relay.
-func DownloadChunk(serverURL string, myDeviceID string, sessionID string) ([]byte, error) {
+func DownloadChunk(client *http.Client, serverURL string, myDeviceID string, sessionID string) ([]byte, error) {
 	url := fmt.Sprintf("%s/relay/recv?me=%s&session=%s", serverURL, myDeviceID, sessionID)
 
-	resp, err := http.Get(url)
+	resp, err := client.Get(url)
 	if err != nil {
 		return nil, err
 	}

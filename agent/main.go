@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -19,7 +20,13 @@ import (
 func main() {
 	serverURL := flag.String("server", "http://localhost:8080", "Control Server URL")
 	dataDir := flag.String("data", "./agent_data", "Data directory")
-	name := flag.String("name", "Device-1", "Device Name")
+	
+	// Default name with random suffix to avoid collisions
+	randBytes := make([]byte, 2)
+	rand.Read(randBytes)
+	defaultName := fmt.Sprintf("Device-%x", randBytes)
+	
+	name := flag.String("name", defaultName, "Device Name")
 
 	flag.Parse()
 
@@ -62,7 +69,56 @@ func main() {
 	// 4. Heartbeat
 	c.StartHeartbeat(5 * time.Second)
 
-	// 5. Display Claim Info
+	// 5. Offline Deletion Sync
+	go func() {
+		// Load last sync time
+		configPath := filepath.Join(*dataDir, "config.json")
+		lastSync := time.Now().Add(-24 * time.Hour) // Default to 24h ago
+
+		type Config struct {
+			LastSync time.Time `json:"last_sync"`
+		}
+		var cfg Config
+
+		if data, err := os.ReadFile(configPath); err == nil {
+			json.Unmarshal(data, &cfg)
+			if !cfg.LastSync.IsZero() {
+				lastSync = cfg.LastSync
+			}
+		}
+
+		syncTicker := time.NewTicker(time.Minute) // Check every minute
+		for {
+			// Sync
+			events, err := c.GetDeletions(lastSync)
+			if err == nil && len(events) > 0 {
+				log.Printf("Syncing %d deletions...", len(events))
+				for _, evt := range events {
+					for _, chunkID := range evt.ChunkIDs {
+						store.DeleteChunk(chunkID)
+					}
+					if evt.DeletedAt.After(lastSync) {
+						lastSync = evt.DeletedAt
+					}
+				}
+				// Identify latest deleted_at correctly to avoid skipping
+				// But simpler: just set lastSync to Now() after successful sync?
+				// No, better to use the max deleted_at from events.
+				
+				// Persist Config
+				cfg.LastSync = lastSync
+				if data, err := json.Marshal(cfg); err == nil {
+					os.WriteFile(configPath, data, 0644)
+				}
+			} else if err != nil {
+				log.Printf("Sync error: %v", err)
+			}
+			
+			<-syncTicker.C
+		}
+	}()
+
+	// 6. Display Claim Info
 	fmt.Println("========================================")
 	fmt.Println("   GENDRIVE - DEVICE STARTED")
 	fmt.Println("========================================")

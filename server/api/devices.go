@@ -63,3 +63,33 @@ func (s *Server) GetMyDevices(w http.ResponseWriter, r *http.Request) {
 	}
 	json.NewEncoder(w).Encode(devices)
 }
+
+func (s *Server) DeleteDevice(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	deviceID := r.URL.Query().Get("id")
+	userID := r.Header.Get("X-User-ID")
+
+	// Verify ownership
+	var exists int
+	err := s.DB.QueryRow("SELECT 1 FROM devices WHERE id = ? AND user_id = ?", deviceID, userID).Scan(&exists)
+	if err != nil || exists == 0 {
+		http.Error(w, "Device not found or unauthorized", http.StatusNotFound)
+		return
+	}
+
+	// Clean up related data
+	s.DB.Exec("DELETE FROM chunk_locations WHERE device_id = ?", deviceID)
+	
+	// Delete device
+	_, err = s.DB.Exec("DELETE FROM devices WHERE id = ?", deviceID)
+	if err != nil {
+		http.Error(w, "DB Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+}

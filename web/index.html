@@ -42,6 +42,8 @@
             display: flex;
             flex-direction: column;
             padding: 30px;
+            transition: transform 0.3s ease;
+            z-index: 100;
         }
 
         .nav-item {
@@ -75,6 +77,8 @@
             display: flex;
             flex-direction: column;
             background: var(--bg);
+            position: relative;
+            width: 100%;
         }
 
         .header {
@@ -85,6 +89,13 @@
             padding: 0 40px;
             justify-content: space-between;
             background: #fff;
+        }
+
+        .menu-btn {
+            display: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            margin-right: 15px;
         }
 
         .page-title {
@@ -167,26 +178,31 @@
 
         /* Add Device Button */
         .add-device-btn {
-            background: var(--bg-secondary);
+            background: #fff;
+            /* Changed to match new graph cards */
             border: 1px solid var(--border);
-            padding: 40px;
+            padding: 0;
+            /* Remove padding to match layout */
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             text-align: center;
-            height: 100%;
+            height: 160px;
+            /* Fixed height to match stats */
+            transition: 0.2s;
         }
 
         .add-device-btn:hover {
-            background: #eef;
-            border-color: #aaf;
+            border-color: #999;
+            background: #fafafa;
         }
 
         .add-device-icon {
-            font-size: 2rem;
-            margin-bottom: 15px;
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #666;
         }
 
         /* Modal */
@@ -305,60 +321,191 @@
             border-color: #000;
         }
 
-        /* Stats Badge */
+        /* New Stat Card with Graph */
         .stat-card {
-            background: #222;
-            color: #fff;
+            background: #fff;
+            border: 1px solid var(--border);
             padding: 20px;
-            text-align: center;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 160px;
+        }
+
+        .stat-card h3 {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: #666;
+            margin: 0;
+            z-index: 2;
         }
 
         .stat-val {
-            font-size: 2rem;
+            font-size: 2.5rem;
             font-weight: 700;
+            color: #000;
+            margin-top: 5px;
+            z-index: 2;
         }
 
-        .stat-label {
-            font-size: 0.8rem;
-            text-transform: uppercase;
-            opacity: 0.7;
+        .stat-graph {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60%;
+            z-index: 1;
+            opacity: 0.5;
+        }
+
+        .stat-graph path {
+            vector-effect: non-scaling-stroke;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                position: fixed;
+                height: 100%;
+                transform: translateX(-100%);
+                box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .menu-btn {
+                display: block;
+            }
+
+            .header {
+                padding: 0 20px;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            /* Responsive Tables */
+            .table thead {
+                display: none;
+            }
+
+            .table,
+            .table tbody,
+            .table tr,
+            .table td {
+                display: block;
+                width: 100%;
+            }
+
+            .table tr {
+                margin-bottom: 15px;
+                border: 1px solid var(--border);
+                background: #fff;
+                padding: 10px;
+            }
+
+            .table td {
+                text-align: left;
+                padding: 5px 0;
+                border: none;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+            }
+
+            .table td::before {
+                content: attr(data-label);
+                font-weight: 600;
+                color: #666;
+                font-size: 0.8rem;
+                text-transform: uppercase;
+            }
         }
     </style>
 </head>
 
 <body>
-    <div class="sidebar">
-        <div style="height: 40px;"></div>
+    <!-- Sidebar Overlay for Mobile -->
+    <div id="sidebarOverlay"
+        style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.3); z-index:90;"
+        onclick="toggleSidebar()"></div>
+
+    <div class="sidebar" id="sidebar">
+        <div style="height: 40px; display:flex; align-items:center; font-weight:700; font-size:1.2rem;">GENDRIVE</div>
         <div class="nav-item active" onclick="nav('overview')">Overview</div>
         <div class="nav-item" onclick="nav('files')">Files</div>
         <div class="nav-item" onclick="nav('devices')">Network</div>
         <div style="flex:1"></div>
         <div class="nav-item" onclick="logout()">LOGOUT</div>
+
+        <div
+            style="margin-top: auto; padding-top: 20px; border-top: 1px solid #e0e0e0; font-size: 0.75rem; color: #999; line-height: 1.6;">
+            <div>&copy; GenDrive</div>
+            <div>Developed by <a href="https://www.chirag404.me" target="_blank"
+                    style="color: #666; text-decoration: none; font-weight: 500;">Chirag</a></div>
+        </div>
     </div>
 
     <div class="main">
         <div class="header">
-            <div class="page-title" id="pageTitle">Overview</div>
-            <div id="userEmail" style="font-family: monospace;">user@gendrive.io</div>
+            <div style="display:flex; align-items:center;">
+                <div class="menu-btn" onclick="toggleSidebar()">☰</div>
+                <div class="page-title" id="pageTitle">Overview</div>
+            </div>
+            <div id="userEmail" style="font-family: monospace; font-size:0.9rem;">user@gendrive.io</div>
         </div>
 
         <!-- OVERVIEW -->
         <div id="overview" class="content active">
             <h2 style="margin-top:0">Snapshot</h2>
             <div class="grid">
+                <!-- Stat Card 1 -->
                 <div class="stat-card">
-                    <div class="stat-val" id="fileCount">0</div>
-                    <div class="stat-label">Files Stored</div>
+                    <div>
+                        <h3>Files Stored</h3>
+                        <div class="stat-val" id="fileCount">0</div>
+                    </div>
+                    <svg class="stat-graph" viewBox="0 0 100 40" preserveAspectRatio="none">
+                        <path d="M0,40 Q10,35 20,20 T40,15 T60,25 T80,10 T100,20 V40 H0 Z" fill="#e0e0e0" />
+                        <path d="M0,40 Q10,35 20,20 T40,15 T60,25 T80,10 T100,20" fill="none" stroke="#999"
+                            stroke-width="2" />
+                    </svg>
                 </div>
-                <div class="stat-card" style="background: #444;">
-                    <div class="stat-val" id="deviceCount">0</div>
-                    <div class="stat-label">Active Nodes</div>
+
+                <!-- Stat Card 2 -->
+                <div class="stat-card">
+                    <div>
+                        <h3>Active Nodes</h3>
+                        <div class="stat-val" id="deviceCount">0</div>
+                    </div>
+                    <svg class="stat-graph" viewBox="0 0 100 40" preserveAspectRatio="none">
+                        <path d="M0,40 L10,30 L20,35 L40,10 L60,20 L80,5 L100,15 V40 H0 Z" fill="#e0e0e0" />
+                        <path d="M0,40 L10,30 L20,35 L40,10 L60,20 L80,5 L100,15" fill="none" stroke="#999"
+                            stroke-width="2" />
+                    </svg>
                 </div>
-                <div class="add-device-btn" onclick="openModal()">
-                    <div class="add-device-icon">+</div>
-                    <div style="font-weight: 600;">ADD NEW DEVICE</div>
-                    <p style="font-size: 0.8rem; margin-top: 5px;">Expand your storage mesh</p>
+
+                <div class="add-device-btn" onclick="document.getElementById('fileInput').click()"
+                    style="background: #1a1a1a; color: #fff; border:none;">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px; opacity:0.9;">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <div style="font-weight: 500; font-size: 0.9rem; letter-spacing:0.5px;">UPLOAD FILES</div>
                 </div>
+
+
             </div>
 
             <h3>Recent Activity</h3>
@@ -409,7 +556,10 @@
         <div id="devices" class="content">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h3 style="margin:0">Network Nodes</h3>
-                <button class="btn" onclick="openModal()">+ Add Node</button>
+                <div style="display:flex; gap:10px;">
+                    <button class="btn btn-outline" onclick="rebalanceCluster()">REBALANCE CLUSTER</button>
+                    <button class="btn" onclick="openModal()">+ ADD NODE</button>
+                </div>
             </div>
             <div class="grid" id="cleanDeviceList">
                 <!-- Cards injected here -->
@@ -426,12 +576,36 @@
             </div>
 
             <div class="step">
-                <div class="step-title">Step 1: Run Installer</div>
-                <div style="color: #666; font-size: 0.9rem;">Open PowerShell on your new device and run:</div>
-                <div style="background: #eee; padding: 10px; font-family: monospace; margin-top: 10px; cursor: pointer; border: 1px solid #ccc;"
-                    onclick="copyCmd(this)">
-                    irm
-                    <script>document.write(window.location.origin)</script>/install.ps1 | iex
+                <div class="step-title">Step 1: Select Platform</div>
+                <div style="display:flex; gap:10px; margin-bottom:15px;">
+                    <button class="btn" id="btnWin" style="flex:1; background:#000;"
+                        onclick="setPlatform('win')">Windows</button>
+                    <button class="btn btn-outline" id="btnAnd" style="flex:1;"
+                        onclick="setPlatform('android')">Android</button>
+                </div>
+
+                <div id="instrWin">
+                    <div style="color: #666; font-size: 0.9rem;">Run in PowerShell:</div>
+                    <div style="background: #eee; padding: 10px; font-family: monospace; margin-top: 5px; cursor: pointer; border: 1px solid #ccc; word-break: break-all;"
+                        onclick="copyCmd(this)">
+                        irm
+                        <script>document.write(window.location.origin)</script>/install.ps1 | iex
+                    </div>
+                </div>
+
+                <div id="instrAnd" style="display:none;">
+                    <div style="color: #666; font-size: 0.9rem;">Run in Termux (Android):</div>
+                    <div style="background: #eee; padding: 10px; font-family: monospace; margin-top: 5px; cursor: pointer; border: 1px solid #ccc; word-break: break-all;"
+                        onclick="copyCmd(this)">
+                        pkg update -y && pkg upgrade -y && pkg install wget -y; termux-wake-lock; wget
+                        <script>document.write(window.location.origin)</script>/agent-android; chmod +x agent-android;
+                        ./agent-android -server
+                        <script>document.write(window.location.origin)</script>
+                    </div>
+                    <div style="font-size:0.8rem; color:#999; margin-top:5px;">
+                        Note: Use Termux from <b>F-Droid</b> (Play Store version is broken).<br>
+                        Keeps running only while Termux is open unless you acquire wake lock.
+                    </div>
                 </div>
             </div>
 
@@ -453,14 +627,34 @@
         // --- Navigation ---
         function nav(page) {
             document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-            event.currentTarget.classList.add('active');
+            // Highlight the clicked item if triggered by event
+            if (event && event.currentTarget && event.currentTarget.classList.contains('nav-item')) {
+                event.currentTarget.classList.add('active');
+            } else {
+                // Fallback: simpler text match or just leave it (initially Overview is active)
+                // If called safely without event, maybe find by text? 
+                // For now, let's just accept event.currentTarget is the main way.
+            }
+
             document.querySelectorAll('.content').forEach(el => el.classList.remove('active'));
             document.getElementById(page).classList.add('active');
             document.getElementById('pageTitle').innerText = page.toUpperCase();
 
+            // Mobile: Close sidebar on nav
+            if (window.innerWidth <= 768) {
+                toggleSidebar();
+            }
+
             if (page === 'files') loadFiles();
             if (page === 'devices') loadDevices();
             if (page === 'overview') { loadFiles(); loadDevices(); }
+        }
+
+        function toggleSidebar() {
+            const sb = document.getElementById('sidebar');
+            sb.classList.toggle('open');
+            const overlay = document.getElementById('sidebarOverlay');
+            overlay.style.display = sb.classList.contains('open') ? 'block' : 'none';
         }
 
         // --- Auth ---
@@ -481,10 +675,10 @@
 
                 const rows = (files || []).map(f => `
                     <tr>
-                        <td><span style="font-weight: 500;">${f.path}</span></td>
-                        <td>${formatBytes(f.size)}</td>
-                        <td style="color:#666">${new Date(f.updated_at).toLocaleDateString()}</td>
-                        <td style="text-align:right">
+                        <td data-label="Name"><span style="font-weight: 500;">${f.path}</span></td>
+                        <td data-label="Size">${formatBytes(f.size)}</td>
+                        <td data-label="Synced At" style="color:#666">${new Date(f.updated_at).toLocaleDateString()}</td>
+                        <td data-label="Action" style="text-align:right">
                             <a href="/api/download?id=${f.id}" class="btn-outline" style="text-decoration:none; padding:6px 12px; font-size:0.8rem; display:inline-block; margin-right:5px;">GET</a>
                             <button onclick="deleteFile('${f.id}')" class="btn-outline" style="padding:6px 12px; font-size:0.8rem; cursor:pointer; background:#fff;">DEL</button>
                         </td>
@@ -517,7 +711,10 @@
                 const grid = document.getElementById('cleanDeviceList');
                 grid.innerHTML = (devs || []).map(d => `
                     <div class="card" style="border-top: 4px solid ${d.online ? '#000' : '#ccc'};">
-                        <h3>${d.name}</h3>
+                        <div style="display:flex; justify-content:space-between;">
+                            <h3>${d.name}</h3>
+                            <button onclick="deleteDevice('${d.id}')" style="border:none; background:none; cursor:pointer; color:#999;">✕</button>
+                        </div>
                         <p style="font-family: monospace; font-size: 0.8rem; margin-bottom: 10px;">${d.id}</p>
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-top: auto;">
                             <span class="status-badge ${d.online ? 'online' : ''}">${d.online ? 'ONLINE' : 'OFFLINE'}</span>
@@ -528,9 +725,34 @@
             } catch (e) { }
         }
 
+        async function deleteDevice(id) {
+            if (!confirm("Disconnect and delete this device? Data on it will be lost from the mesh.")) return;
+            await fetch(`/api/devices/delete?id=${id}`, { method: 'DELETE' });
+            loadDevices();
+        }
+
         // --- Modal ---
         function openModal() { document.getElementById('addDeviceModal').style.display = 'flex'; }
         function closeModal() { document.getElementById('addDeviceModal').style.display = 'none'; }
+
+        function setPlatform(p) {
+            const btnWin = document.getElementById('btnWin');
+            const btnAnd = document.getElementById('btnAnd');
+            const instrWin = document.getElementById('instrWin');
+            const instrAnd = document.getElementById('instrAnd');
+
+            if (p === 'win') {
+                btnWin.style.background = '#000'; btnWin.style.color = '#fff'; btnWin.classList.remove('btn-outline');
+                btnAnd.style.background = 'transparent'; btnAnd.style.color = '#1a1a1a'; btnAnd.classList.add('btn-outline');
+                instrWin.style.display = 'block';
+                instrAnd.style.display = 'none';
+            } else {
+                btnAnd.style.background = '#000'; btnAnd.style.color = '#fff'; btnAnd.classList.remove('btn-outline');
+                btnWin.style.background = 'transparent'; btnWin.style.color = '#1a1a1a'; btnWin.classList.add('btn-outline');
+                instrAnd.style.display = 'block';
+                instrWin.style.display = 'none';
+            }
+        }
 
         document.getElementById('claimForm').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -569,6 +791,10 @@
         };
 
         // --- Utils ---
+        function rebalanceCluster() {
+            if (!confirm("Start cluster rebalancing? This will move chunks between devices to equalize load.")) return;
+            fetch('/api/admin/rebalance').then(r => r.text()).then(alert);
+        }
         function copyCmd(el) {
             const r = document.createRange(); r.selectNode(el);
             window.getSelection().removeAllRanges(); window.getSelection().addRange(r);

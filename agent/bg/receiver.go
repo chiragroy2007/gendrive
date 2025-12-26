@@ -32,7 +32,7 @@ func (r *Receiver) loop() {
 
 	for {
 		// Poll Relay
-		data, err := transfer.DownloadChunk(r.Client.ServerURL, r.MyID, session)
+		data, err := transfer.DownloadChunk(r.Client.Client, r.Client.ServerURL, r.MyID, session)
 		if err != nil {
 			time.Sleep(1 * time.Second)
 			continue
@@ -103,5 +103,11 @@ func (r *Receiver) handleStore(data []byte) {
 	// 3. Report to Server
 	if err := r.Client.ReportChunkLocation(chunkID); err != nil {
 		log.Printf("Failed to report chunk location: %v", err)
+	}
+
+	// 4. Send ACK to Server (Critical for reliability)
+	// Server waits for this on "ack-{chunkID}"
+	if err := r.Client.RelaySend("server", "ack-"+chunkID, []byte("OK")); err != nil {
+		log.Printf("Failed to send ACK for chunk %s: %v", chunkID, err)
 	}
 }

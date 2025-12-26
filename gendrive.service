@@ -1,0 +1,16 @@
+[Unit]
+Description=GenDrive Control Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/chirag-personal/gendrive/server
+ExecStart=/root/chirag-personal/gendrive/server/gendrive-server
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

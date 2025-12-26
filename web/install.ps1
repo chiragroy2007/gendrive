@@ -1,5 +1,5 @@
 # GenDrive Installer
-$BaseUrl = "http://drive.chirag404.me"
+$BaseUrl = "https://drive.chirag404.me"
 $Dest = "$env:USERPROFILE\GenDrive"
 
 Write-Host "Installing GenDrive to $Dest..." -ForegroundColor Green

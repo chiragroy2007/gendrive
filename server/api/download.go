@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"p2p-drive/shared"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 func (s *Server) GetFiles(w http.ResponseWriter, r *http.Request) {
@@ -58,38 +60,60 @@ func (s *Server) DownloadFile(w http.ResponseWriter, r *http.Request) {
 		var cSize int64
 		rows.Scan(&chunkID, &seq, &cSize)
 
-		// Find Location
-		var deviceID string
-		// Pick first online device
-		err := s.DB.QueryRow(`
+		// Find All Locations for this chunk
+		var devices []string
+		locRows, err := s.DB.Query(`
             SELECT d.id FROM devices d 
             JOIN chunk_locations cl ON cl.device_id = d.id 
-            WHERE cl.chunk_id = ? AND d.online = 1 LIMIT 1`, chunkID).Scan(&deviceID)
+            WHERE cl.chunk_id = ? AND d.online = 1`, chunkID)
+		
+		if err == nil {
+			for locRows.Next() {
+				var did string
+				locRows.Scan(&did)
+				devices = append(devices, did)
+			}
+			locRows.Close()
+		}
 
-		if err != nil {
+		if len(devices) == 0 {
 			http.Error(w, fmt.Sprintf("Chunk %d missing (no online peers)", seq), http.StatusServiceUnavailable)
 			return
 		}
 
-		// Request Chunk from Agent
-		// Command: RETRIEVE <chunkID>
-		// We send this to Agent's Inbox
-		reqMsg := shared.RelayMessage{
-			Type:    shared.RelayTypeRetrieve,
-			Payload: []byte(chunkID),
-		}
-		reqBytes, _ := json.Marshal(reqMsg)
-		s.injectRelayMessage(deviceID, "inbox", reqBytes)
+		// Try to Retrieve from any available device
+		var chunkData []byte
+		success := false
 
-		// Wait for Data
-		// Agent sends to "server", session "chunk-<chunkID>"
-		data, err := s.waitForRelayData("server", "chunk-"+chunkID, 15*time.Second)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Timeout retrieving chunk %d", seq), http.StatusGatewayTimeout)
+		for _, deviceID := range devices {
+			// Request Chunk
+			reqMsg := shared.RelayMessage{
+				Type:    shared.RelayTypeRetrieve,
+				Payload: []byte(chunkID),
+			}
+			reqBytes, _ := json.Marshal(reqMsg)
+			
+			// Try to inject (skip if buffer full)
+			if !s.injectRelayMessage(deviceID, "inbox", reqBytes) {
+				continue
+			}
+
+			// Wait for Data
+			data, err := s.waitForRelayData("server", "chunk-"+chunkID, 15*time.Second)
+			if err == nil {
+				chunkData = data
+				success = true
+				break
+			}
+			// If error (timeout), loop to next device
+		}
+
+		if !success {
+			http.Error(w, fmt.Sprintf("Failed to retrieve chunk %d from any peer", seq), http.StatusGatewayTimeout)
 			return
 		}
 
-		w.Write(data)
+		w.Write(chunkData)
 	}
 }
 
@@ -140,6 +164,7 @@ func (s *Server) DeleteFile(w http.ResponseWriter, r *http.Request) {
 
 	// 2. Identify Chunks and Locations to notify Agents
 	// We want to tell agents to delete these chunks.
+	var chunkIDs []string
 	rows, err := s.DB.Query(`
 		SELECT cl.device_id, c.id 
 		FROM chunks c 
@@ -161,6 +186,24 @@ func (s *Server) DeleteFile(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+
+	// 2.1 Collect Chunk IDs for Offline Sync
+	// We need a list of ALL chunks belonging to this file, regardless of location
+	chunkRows, err := s.DB.Query("SELECT id FROM chunks WHERE file_id = ?", fileID)
+	if err == nil {
+		defer chunkRows.Close()
+		for chunkRows.Next() {
+			var cid string
+			chunkRows.Scan(&cid)
+			chunkIDs = append(chunkIDs, cid)
+		}
+	}
+
+	// 2.2 Record in deleted_files table
+	chunkJSON, _ := json.Marshal(chunkIDs)
+	s.DB.Exec("INSERT INTO deleted_files (id, file_id, chunk_ids, deleted_at) VALUES (?, ?, ?, ?)",
+		uuid.New().String(), fileID, string(chunkJSON), time.Now().Format(time.RFC3339))
+
 
 	// 3. Clean Database (Cascade should handle chunks/locations if set up,
 	// but manual cleanup is safer if schema is unsure)

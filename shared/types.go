@@ -70,3 +70,22 @@ type ChunkLocationRequest struct {
 	ChunkID  string `json:"chunk_id"`
 	DeviceID string `json:"device_id"`
 }
+
+// DeletionEvent represents a file deletion event for sync.
+type DeletionEvent struct {
+	FileID    string    `json:"file_id"`
+	ChunkIDs  []string  `json:"chunk_ids"`
+	DeletedAt time.Time `json:"deleted_at"`
+}
+
+// SortDevicesByLoad sorts devices by chunk count (Least Loaded First)
+func SortDevicesByLoad(devices []Device, loads map[string]int) {
+	// Simple bubble sort or similar since N is small
+	for i := 0; i < len(devices); i++ {
+		for j := i + 1; j < len(devices); j++ {
+			if loads[devices[j].ID] < loads[devices[i].ID] {
+				devices[i], devices[j] = devices[j], devices[i]
+			}
+		}
+	}
+}

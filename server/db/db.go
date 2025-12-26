@@ -17,6 +17,11 @@ func InitDB(filepath string) *sql.DB {
 		log.Fatal(err)
 	}
 
+	// Enable WAL mode for concurrency
+	if _, err := db.Exec("PRAGMA journal_mode=WAL;"); err != nil {
+		log.Printf("Failed to enable WAL mode: %v", err)
+	}
+
 	createTables(db)
 	return db
 }
@@ -65,6 +70,12 @@ func createTables(db *sql.DB) {
 			PRIMARY KEY (chunk_id, device_id),
 			FOREIGN KEY(chunk_id) REFERENCES chunks(id),
 			FOREIGN KEY(device_id) REFERENCES devices(id)
+		);`,
+		`CREATE TABLE IF NOT EXISTS deleted_files (
+			id TEXT PRIMARY KEY, /* file_id usually */
+			file_id TEXT,
+			chunk_ids TEXT, /* JSON array */
+			deleted_at DATETIME
 		);`,
 	}
 

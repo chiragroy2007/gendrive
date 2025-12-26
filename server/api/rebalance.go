@@ -2,138 +2,175 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"net/http"
 	"time"
 
 	"p2p-drive/shared"
 )
 
-func (s *Server) TriggerRebalance(userID string) {
-	go func() {
-		log.Printf("[Rebalance] Started for user %s", userID)
-
-		// 1. Get Devices & Usage
-		rows, err := s.DB.Query(`
-            SELECT d.id, COALESCE(SUM(c.size), 0) 
-            FROM devices d
-            LEFT JOIN chunk_locations cl ON d.id = cl.device_id
-            LEFT JOIN chunks c ON cl.chunk_id = c.id
-            WHERE d.user_id = ? AND d.online = 1
-            GROUP BY d.id`, userID)
-		if err != nil {
-			log.Printf("[Rebalance] Error getting usage: %v", err)
-			return
-		}
-		defer rows.Close()
-
-		type DeviceLoad struct {
-			ID    string
-			Usage int64
-		}
-		var loads []DeviceLoad
-		var totalUsage int64
-
-		for rows.Next() {
-			var dl DeviceLoad
-			rows.Scan(&dl.ID, &dl.Usage)
-			loads = append(loads, dl)
-			totalUsage += dl.Usage
-		}
-
-		if len(loads) < 2 || totalUsage == 0 {
-			log.Println("[Rebalance] Not enough devices or data to rebalance.")
-			return
-		}
-
-		avgLoad := totalUsage / int64(len(loads))
-		thresholdHigh := int64(float64(avgLoad) * 1.2)
-		thresholdLow := int64(float64(avgLoad) * 0.8)
-
-		log.Printf("[Rebalance] Total: %d, Avg: %d, High: %d, Low: %d", totalUsage, avgLoad, thresholdHigh, thresholdLow)
-
-		// 2. Identify Moves
-		for _, source := range loads {
-			if source.Usage > thresholdHigh {
-				// Find target
-				for _, target := range loads {
-					if target.Usage < thresholdLow && target.ID != source.ID {
-						// Calculate amount to move
-						toMove := source.Usage - avgLoad
-						log.Printf("[Rebalance] Moving %d bytes from %s to %s", toMove, source.ID, target.ID)
-
-						s.moveChunks(source.ID, target.ID, toMove)
-
-						// Update local tracking to avoid double-moving in this pass
-						source.Usage -= toMove
-						target.Usage += toMove
-					}
-				}
-			}
-		}
-		log.Println("[Rebalance] Completed.")
-	}()
+// RebalanceHandler triggers the rebalancing process manually
+func (s *Server) RebalanceHandler(w http.ResponseWriter, r *http.Request) {
+	userID := r.Header.Get("X-User-ID")
+	if userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	go s.TriggerRebalance(userID) 
+	w.Write([]byte("Rebalancing started in background"))
 }
 
-func (s *Server) moveChunks(sourceID, targetID string, amount int64) {
-	// Get chunks from source
-	rows, err := s.DB.Query(`
-        SELECT c.id, c.size FROM chunks c
-        JOIN chunk_locations cl ON c.id = cl.chunk_id
-        WHERE cl.device_id = ? LIMIT 50`, sourceID) // Process batch
+func (s *Server) TriggerRebalance(userID string) {
+	log.Printf("Starting Cluster Rebalance for user %s...", userID)
+	// 1. Get all online devices
+	devices, err := s.getUserOnlineDevices(userID)
+	if err != nil || len(devices) < 2 {
+		log.Println("Not enough devices to rebalance")
+		return
+	}
+
+	// 2. Get all chunk locations
+	// Map: ChunkID -> []DeviceID
+	rows, err := s.DB.Query("SELECT chunk_id, device_id FROM chunk_locations")
 	if err != nil {
+		log.Println("DB Error:", err)
 		return
 	}
 	defer rows.Close()
 
-	var moved int64 = 0
-	for rows.Next() {
-		if moved >= amount {
-			break
-		}
+	chunkLocs := make(map[string][]string)
+	deviceLoad := make(map[string]int) // DeviceID -> ChunkCount
 
-		var chunkID string
-		var size int64
-		rows.Scan(&chunkID, &size)
-
-		// 1. Retrieve from Source
-		// Send RETRIEVE to Source
-		reqMsg := shared.RelayMessage{Type: shared.RelayTypeRetrieve, Payload: []byte(chunkID)}
-		reqBytes, _ := json.Marshal(reqMsg)
-		s.injectRelayMessage(sourceID, "inbox", reqBytes)
-
-		// Wait for Data
-		data, err := s.waitForRelayData("server", "chunk-"+chunkID, 10*time.Second)
-		if err != nil {
-			log.Printf("[Rebalance] Failed to retrieve chunk %s: %v", chunkID, err)
-			continue
-		}
-
-		// 2. Store to Target
-		// Send STORE to Target
-		storeMsg := shared.RelayMessage{Type: shared.RelayTypeStore, Payload: data}
-		storeBytes, _ := json.Marshal(storeMsg)
-		s.injectRelayMessage(targetID, "inbox", storeBytes)
-
-		// Wait/Assume success (UDP-like for now, but ideally we wait for ack)
-		// For prototype, we update DB immediately.
-
-		// 3. Update DB
-		_, err = s.DB.Exec("INSERT OR IGNORE INTO chunk_locations (chunk_id, device_id) VALUES (?, ?)", chunkID, targetID)
-		if err != nil {
-			continue
-		}
-
-		_, err = s.DB.Exec("DELETE FROM chunk_locations WHERE chunk_id = ? AND device_id = ?", chunkID, sourceID)
-		if err != nil {
-			continue
-		}
-
-		// 4. Delete from Source
-		delMsg := shared.RelayMessage{Type: shared.RelayTypeDelete, Payload: []byte(chunkID)}
-		delBytes, _ := json.Marshal(delMsg)
-		s.injectRelayMessage(sourceID, "inbox", delBytes)
-
-		log.Printf("[Rebalance] Moved chunk %s (%d bytes)", chunkID, size)
-		moved += size
+	for _, d := range devices {
+		deviceLoad[d.ID] = 0 // Init
 	}
+
+	for rows.Next() {
+		var c, d string
+		rows.Scan(&c, &d)
+		chunkLocs[c] = append(chunkLocs[c], d)
+		if _, ok := deviceLoad[d]; ok {
+			deviceLoad[d]++
+		}
+	}
+
+	// 3. Calculate Target Load
+	totalChunks := 0
+	for _, count := range deviceLoad {
+		totalChunks += count
+	}
+	targetLoad := totalChunks / len(devices)
+	fmt.Printf("Total Chunks: %d, Devices: %d, Target: %d\n", totalChunks, len(devices), targetLoad)
+
+	// 4. Move Chunks
+	// Simple greedy approach: Take from overloaded, give to underloaded
+	for devID, count := range deviceLoad {
+		if count > targetLoad {
+			toMove := count - targetLoad
+			// Find chunks on this device to move
+			moved := 0
+			// Iterate all chunks to find ones on this device (inefficient but works for now)
+			for chunkID, locs := range chunkLocs {
+				if moved >= toMove {
+					break
+				}
+				// Check if this chunk is ON this device
+				hasIt := false
+				for _, d := range locs {
+					if d == devID {
+						hasIt = true
+						break
+					}
+				}
+
+				if hasIt {
+					// Find the best target device (lowest load)
+					var targetDev string
+					minLoad := 999999
+					
+					for d, c := range deviceLoad {
+						if c < minLoad {
+							minLoad = c
+							targetDev = d
+						}
+					}
+
+					// Only move if target has less than source (prevent ping-pong if equal)
+					// And only if target is significantly better or we are overloaded
+					if targetDev != "" && minLoad < count {
+						log.Printf("Moving chunk %s from %s (load %d) to %s (load %d)", chunkID, devID, count, targetDev, minLoad)
+						if s.MoveChunk(chunkID, devID, targetDev) {
+							// Update local state
+							deviceLoad[devID]--
+							deviceLoad[targetDev]++
+							moved++
+						}
+					}
+				}
+			}
+		}
+	}
+	log.Println("Rebalance Complete")
+}
+
+func (s *Server) MoveChunk(chunkID, sourceDev, targetDev string) bool {
+	// 1. Request Retrieve from Source
+	reqMsg := shared.RelayMessage{
+		Type:    shared.RelayTypeRetrieve,
+		Payload: []byte(chunkID),
+	}
+	reqBytes, _ := json.Marshal(reqMsg)
+	s.injectRelayMessage(sourceDev, "inbox", reqBytes)
+
+	// 2. Wait for Source to send back to "server" on session "chunk-{id}"
+	key := "server-chunk-" + chunkID
+	
+	// Create channel in map to listen
+	relayLock.Lock()
+	ch := make(chan []byte, 1)
+	relayChannels[key] = ch
+	relayLock.Unlock()
+
+	defer func() {
+		relayLock.Lock()
+		delete(relayChannels, key)
+		relayLock.Unlock()
+	}()
+
+	var chunkData []byte
+	select {
+	case data := <-ch:
+		chunkData = data
+	case <-time.After(10 * time.Second):
+		log.Printf("Timeout receiving chunk %s from %s", chunkID, sourceDev)
+		return false
+	}
+
+	// 3. Send Store to Target
+	storeMsg := shared.RelayMessage{
+		Type:    shared.RelayTypeStore,
+		Payload: chunkData,
+	}
+	storeBytes, _ := json.Marshal(storeMsg)
+	s.injectRelayMessage(targetDev, "inbox", storeBytes)
+
+	// 4. Update DB
+	// We assume success for now, or could wait for ack?
+	// Realistically, we should wait for "Location Reported" but that's async.
+	// We'll update DB optimistically or wait?
+	// Let's just update DB.
+	s.DB.Exec("INSERT OR IGNORE INTO chunk_locations (chunk_id, device_id) VALUES (?, ?)", chunkID, targetDev)
+	
+	// 5. Delete from Source
+	delMsg := shared.RelayMessage{
+		Type:    shared.RelayTypeDelete,
+		Payload: []byte(chunkID),
+	}
+	delBytes, _ := json.Marshal(delMsg)
+	s.injectRelayMessage(sourceDev, "inbox", delBytes)
+	
+	s.DB.Exec("DELETE FROM chunk_locations WHERE chunk_id = ? AND device_id = ?", chunkID, sourceDev)
+
+	return true
 }

@@ -95,7 +95,7 @@ func (s *Server) RelayRecv(w http.ResponseWriter, r *http.Request) {
 	relayLock.Lock()
 	ch, ok := relayChannels[key]
 	if !ok {
-		ch = make(chan []byte, 1)
+		ch = make(chan []byte, 10)
 		relayChannels[key] = ch
 	}
 	relayLock.Unlock()

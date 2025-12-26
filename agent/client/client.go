@@ -2,8 +2,11 @@ package client
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -17,10 +20,35 @@ type Client struct {
 }
 
 func NewClient(serverURL, deviceID string) *Client {
+	// Custom Dialer to force Google DNS (fixes Termux/Android DNS issues)
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+		Resolver: &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				return net.Dial("udp", "8.8.8.8:53")
+			},
+		},
+	}
+
+	transport := &http.Transport{
+		DialContext:           dialer.DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
+	}
+
 	return &Client{
 		ServerURL: serverURL,
 		ID:        deviceID,
-		Client:    &http.Client{Timeout: 10 * time.Second},
+		Client: &http.Client{
+			Timeout:   30 * time.Second,
+			Transport: transport,
+		},
 	}
 }
 
@@ -155,4 +183,23 @@ func (c *Client) RelaySend(to, session string, data []byte) error {
 		return fmt.Errorf("relay send failed: %d", resp.StatusCode)
 	}
 	return nil
+}
+
+func (c *Client) GetDeletions(since time.Time) ([]shared.DeletionEvent, error) {
+	url := fmt.Sprintf("%s/api/sync/deletions?since=%s", c.ServerURL, since.Format(time.RFC3339))
+	resp, err := c.Client.Get(url)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("get deletions failed: %d", resp.StatusCode)
+	}
+
+	var events []shared.DeletionEvent
+	if err := json.NewDecoder(resp.Body).Decode(&events); err != nil {
+		return nil, err
+	}
+	return events, nil
 }

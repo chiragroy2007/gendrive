@@ -35,6 +35,7 @@ func main() {
 
 	http.HandleFunc("/api/devices/claim", auth(server.ClaimDevice))
 	http.HandleFunc("/api/devices", auth(server.GetMyDevices))
+	http.HandleFunc("/api/devices/delete", auth(server.DeleteDevice))
 	http.HandleFunc("/api/upload", auth(server.UploadFile))
 	http.HandleFunc("/api/files", auth(server.GetFiles))
 	http.HandleFunc("/api/download", auth(server.DownloadFile))
@@ -43,6 +44,9 @@ func main() {
 	// Agent Download
 	http.HandleFunc("/agent.exe", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "../agent/agent.exe")
+	})
+	http.HandleFunc("/agent-android", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "../agent/agent-android")
 	})
 
 	// Public / Agent API
@@ -60,13 +64,16 @@ func main() {
 			server.GetFileMetadata(w, r)
 		}
 	})
+	
+	http.HandleFunc("/api/sync/deletions", server.GetDeletions)
+	http.HandleFunc("/api/admin/rebalance", auth(server.RebalanceHandler))
 
 	// Static
 	fs := http.FileServer(http.Dir("../web"))
 	http.Handle("/", fs)
 
-	log.Println("GenDrive Server starting on :8080...")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	log.Println("GenDrive Server starting on :8085...")
+	if err := http.ListenAndServe(":8085", nil); err != nil {
 		log.Fatal(err)
 	}
 }

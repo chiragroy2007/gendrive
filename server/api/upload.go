@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"path/filepath"
 	"time"
@@ -26,7 +25,7 @@ func (s *Server) UploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Parse Multipart
-	err := r.ParseMultipartForm(100 << 20) // 100MB max memory
+	err := r.ParseMultipartForm(512 << 20) // 512MB max memory
 	if err != nil {
 		http.Error(w, "Failed to parse form", http.StatusBadRequest)
 		return
@@ -85,26 +84,47 @@ func (s *Server) UploadFile(w http.ResponseWriter, r *http.Request) {
 		_, err = s.DB.Exec("INSERT OR IGNORE INTO chunks (id, file_id, sequence, hash, size) VALUES (?, ?, ?, ?, ?)",
 			chunkID, fileID, sequence, chunkID, n)
 		if err != nil {
-			// Log error but maybe continue
+			// Log error
 		}
 
-		// Select Device (Round Robin or Random)
-		device := devices[rand.Intn(len(devices))]
-
-		// Record Location
-		_, err = s.DB.Exec("INSERT OR IGNORE INTO chunk_locations (chunk_id, device_id) VALUES (?, ?)",
-			chunkID, device.ID)
-
-		// Distribute via Relay
-		// We construct a specific RelayMessage for the Agent
+		// Distribute via Relay with Retry
 		relayMsg := shared.RelayMessage{
 			Type:    shared.RelayTypeStore,
 			Payload: chunkData,
 		}
 		msgBytes, _ := json.Marshal(relayMsg)
 
-		// Inject into Relay Channel
-		s.injectRelayMessage(device.ID, "inbox", msgBytes)
+		sent := false
+		// Shuffle devices for load balancing
+		// Sort devices by load (Least Loaded First)
+		// We fetch load real-time or cached? Real-time is safer for "absolute allocation".
+		loads := s.getDeviceLoads(devices)
+		
+		// Sort: Ascending load
+		shared.SortDevicesByLoad(devices, loads)
+
+		for _, device := range devices {
+			if s.injectRelayMessage(device.ID, "inbox", msgBytes) {
+				// WAIT FOR ACK (Strict Alloc)
+				// Agent must confirm storage
+				_, err := s.waitForRelayData("server", "ack-"+chunkID, 30*time.Second)
+				if err == nil {
+					// Success!
+					_, err = s.DB.Exec("INSERT OR IGNORE INTO chunk_locations (chunk_id, device_id) VALUES (?, ?)",
+						chunkID, device.ID)
+					sent = true
+					break // Success, move to next chunk
+				} else {
+					fmt.Printf("Device %s failed to ACK chunk %s (Timeout)\n", device.ID, chunkID)
+					// Loop continues to next device...
+				}
+			}
+		}
+
+		if !sent {
+			http.Error(w, "Failed to store chunk on any device", http.StatusServiceUnavailable)
+			return
+		}
 
 		sequence++
 		if err == io.EOF {
@@ -136,43 +156,59 @@ func (s *Server) getUserOnlineDevices(userID string) ([]shared.Device, error) {
 	return devices, nil
 }
 
+func (s *Server) getDeviceLoads(devices []shared.Device) map[string]int {
+	loads := make(map[string]int)
+	// Initialize 0
+	for _, d := range devices {
+		loads[d.ID] = 0
+	}
+	
+	rows, err := s.DB.Query("SELECT device_id, COUNT(*) FROM chunk_locations GROUP BY device_id")
+	if err != nil {
+		return loads
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id string
+		var count int
+		if err := rows.Scan(&id, &count); err == nil {
+			loads[id] = count
+		}
+	}
+	return loads
+}
+
 // Ensure we access the global relayChannels from relay.go
-func (s *Server) injectRelayMessage(to, session string, data []byte) {
+// Ensure we access the global relayChannels from relay.go
+func (s *Server) injectRelayMessage(to, session string, data []byte) bool {
 	key := to + "-" + session
 	relayLock.Lock()
-	defer relayLock.Unlock()
-
+	
 	ch, ok := relayChannels[key]
 	if !ok {
-		// Create if not exists, but usually receiver creates it by polling first?
-		// Our Receiver polls -> RelayRecv -> creates channel.
-		// If receiver hasn't polled yet, we create it here and wait for them to poll.
-		ch = make(chan []byte, 10) // Buffer 10 chunks
+		// Create if not exists with larger buffer
+		ch = make(chan []byte, 10) 
 		relayChannels[key] = ch
 
-		// Timeout cleanup (Copied from RelaySend logic)
+		// Timeout cleanup 
 		go func(k string) {
-			time.Sleep(60 * time.Second) // Give agent time to poll
+			time.Sleep(60 * time.Second) 
 			relayLock.Lock()
 			if _, exists := relayChannels[k]; exists {
-				// Don't close if actively used?
-				// Simple timeout for now.
-				// Re-closing might panic if already closed, but we check existence.
-				// close(relayChannels[k]) // Closing might cause send panic if concurrent.
-				// For simple prototype, rely on GC/delete.
-				// Or better: don't close, just delete.
-				// If we delete, sender re-creates.
 				delete(relayChannels, k)
 			}
 			relayLock.Unlock()
 		}(key)
 	}
+	relayLock.Unlock()
 
-	// Non-blocking send or timeout?
+	// Try send with timeout
 	select {
 	case ch <- data:
-	case <-time.After(5 * time.Second):
-		// Drop packet if agent full
-		fmt.Println("Dropped chunk for " + to)
+		return true
+	case <-time.After(15 * time.Second): // Increased to 15s for mobile latency
+		fmt.Println("Dropped chunk for " + to + " (Buffer Full/Timeout)")
+		return false
 	}
 }
