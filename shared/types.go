@@ -10,6 +10,7 @@ type Device struct {
 	LastSeen  time.Time `json:"last_seen"`
 	IP        string    `json:"ip"` // Last known IP (for potential direct connect optimization later)
 	Online    bool      `json:"online"`
+    Type      string    `json:"type"` // "agent" or "gdrive"
 }
 
 // FileMetadata represents a file tracked by the system.

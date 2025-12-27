@@ -20,3 +20,14 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Credentials
+server/credentials.json
+
+# Binaries
+server/gendrive-server
+agent/agent
+
+# Database Journal
+*.db-shm
+*.db-wal

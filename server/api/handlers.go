@@ -13,11 +13,12 @@ import (
 )
 
 type Server struct {
-	DB *sql.DB
+	DB     *sql.DB
+    GDrive *GDriveManager
 }
 
-func NewServer(db *sql.DB) *Server {
-	return &Server{DB: db}
+func NewServer(db *sql.DB, gdrive *GDriveManager) *Server {
+	return &Server{DB: db, GDrive: gdrive}
 }
 
 func (s *Server) RegisterDevice(w http.ResponseWriter, r *http.Request) {

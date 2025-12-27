@@ -10,6 +10,7 @@
 
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600&display=swap"
         rel="stylesheet">
+    <link rel="icon" href="/logo.png" type="image/png">
     <style>
         :root {
             --bg: #ffffff;
@@ -429,6 +430,10 @@
                 font-size: 0.8rem;
                 text-transform: uppercase;
             }
+
+            .platform-select {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
@@ -440,7 +445,10 @@
         onclick="toggleSidebar()"></div>
 
     <div class="sidebar" id="sidebar">
-        <div style="height: 40px; display:flex; align-items:center; font-weight:700; font-size:1.2rem;">GENDRIVE</div>
+        <div style="height: 40px; display:flex; align-items:center; font-weight:700; font-size:1.2rem;">
+            <img src="/logo.png" alt="Logo" style="height: 32px; width: 32px; margin-right: 10px; object-fit: contain;">
+            GENDRIVE
+        </div>
         <div class="nav-item active" onclick="nav('overview')">Overview</div>
         <div class="nav-item" onclick="nav('files')">Files</div>
         <div class="nav-item" onclick="nav('devices')">Network</div>
@@ -577,11 +585,13 @@
 
             <div class="step">
                 <div class="step-title">Step 1: Select Platform</div>
-                <div style="display:flex; gap:10px; margin-bottom:15px;">
+                <div class="platform-select" style="display:flex; gap:10px; margin-bottom:15px;">
                     <button class="btn" id="btnWin" style="flex:1; background:#000;"
                         onclick="setPlatform('win')">Windows</button>
                     <button class="btn btn-outline" id="btnAnd" style="flex:1;"
                         onclick="setPlatform('android')">Android</button>
+                    <button class="btn btn-outline" id="btnGDrive" style="flex:1;"
+                        onclick="setPlatform('gdrive')">Google Drive</button>
                 </div>
 
                 <div id="instrWin">
@@ -607,9 +617,21 @@
                         Keeps running only while Termux is open unless you acquire wake lock.
                     </div>
                 </div>
+
+                <div id="instrGDrive" style="display:none;">
+                    <div style="color: #666; font-size: 0.9rem;">Cloud Node Integration</div>
+                    <div style="margin-top:10px; font-size:0.9rem; line-height:1.5; color:#444;">
+                        Link your Google Drive account to allow the server to offload storage to the cloud.
+                        The server will act as a virtual node on your behalf.
+                    </div>
+                    <a href="/api/gdrive/auth" class="btn"
+                        style="display:block; text-align:center; margin-top:15px; text-decoration:none; background:#4285F4;">
+                        Sign in with Google
+                    </a>
+                </div>
             </div>
 
-            <div class="step active">
+            <div class="step active" id="step2">
                 <div class="step-title">Step 2: Enter Identity</div>
                 <div style="color: #666; font-size: 0.9rem; margin-bottom: 10px;">Enter the details displayed on the
                     device console.</div>
@@ -670,10 +692,11 @@
         async function loadFiles() {
             try {
                 const res = await fetch('/api/files');
-                const files = res.ok ? await res.json() : [];
-                document.getElementById('fileCount').innerText = files.length || 0;
+                const data = res.ok ? await res.json() : [];
+                const files = data || [];
+                document.getElementById('fileCount').innerText = files.length;
 
-                const rows = (files || []).map(f => `
+                const rows = files.map(f => `
                     <tr>
                         <td data-label="Name"><span style="font-weight: 500;">${f.path}</span></td>
                         <td data-label="Size">${formatBytes(f.size)}</td>
@@ -687,7 +710,10 @@
 
                 document.getElementById('fileTable').innerHTML = rows || '<tr><td colspan="4">No files.</td></tr>';
                 document.getElementById('recentTable').innerHTML = rows ? rows.split('</tr>').slice(0, 5).join('</tr>') : '<tr><td colspan="4">No recent activity.</td></tr>';
-            } catch (e) { }
+            } catch (e) {
+                console.error(e);
+                document.getElementById('fileTable').innerHTML = '<tr><td colspan="4">Error loading files.</td></tr>';
+            }
         }
 
         async function deleteFile(id) {
@@ -738,19 +764,31 @@
         function setPlatform(p) {
             const btnWin = document.getElementById('btnWin');
             const btnAnd = document.getElementById('btnAnd');
+            const btnGDrive = document.getElementById('btnGDrive');
             const instrWin = document.getElementById('instrWin');
             const instrAnd = document.getElementById('instrAnd');
+            const instrGDrive = document.getElementById('instrGDrive');
+            const step2 = document.getElementById('step2');
+
+            // Reset
+            [btnWin, btnAnd, btnGDrive].forEach(b => {
+                b.style.background = 'transparent';
+                b.style.color = '#1a1a1a';
+                b.classList.add('btn-outline');
+            });
+            [instrWin, instrAnd, instrGDrive].forEach(i => i.style.display = 'none');
+            step2.style.display = 'block'; // Default show
 
             if (p === 'win') {
                 btnWin.style.background = '#000'; btnWin.style.color = '#fff'; btnWin.classList.remove('btn-outline');
-                btnAnd.style.background = 'transparent'; btnAnd.style.color = '#1a1a1a'; btnAnd.classList.add('btn-outline');
                 instrWin.style.display = 'block';
-                instrAnd.style.display = 'none';
-            } else {
+            } else if (p === 'android') {
                 btnAnd.style.background = '#000'; btnAnd.style.color = '#fff'; btnAnd.classList.remove('btn-outline');
-                btnWin.style.background = 'transparent'; btnWin.style.color = '#1a1a1a'; btnWin.classList.add('btn-outline');
                 instrAnd.style.display = 'block';
-                instrWin.style.display = 'none';
+            } else {
+                btnGDrive.style.background = '#000'; btnGDrive.style.color = '#fff'; btnGDrive.classList.remove('btn-outline');
+                instrGDrive.style.display = 'block';
+                step2.style.display = 'none'; // Hide for GDrive (OAuth flow)
             }
         }
 

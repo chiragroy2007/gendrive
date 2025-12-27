@@ -77,26 +77,29 @@ func createTables(db *sql.DB) {
 			chunk_ids TEXT, /* JSON array */
 			deleted_at DATETIME
 		);`,
+		`CREATE TABLE IF NOT EXISTS gdrive_tokens (
+			user_id TEXT PRIMARY KEY,
+			access_token TEXT,
+			refresh_token TEXT,
+			token_type TEXT,
+			expiry DATETIME,
+			FOREIGN KEY(user_id) REFERENCES users(id)
+		);`,
 	}
 
 	for _, query := range queries {
 		_, err := db.Exec(query)
 		if err != nil {
-			// Log but don't fatal on "table exists" or duplicate column if we were smart,
-			// but for now let's just log.Fatal as originally designed for fresh run.
-			// OR Better: swallow error if "already exists"?
 			log.Printf("DB Init Warning/Error: %v", err)
 		}
 	}
 
-	// Migrations for existing tables (Idempotent-ish)
-	// We add columns if they are missing.
-	// SQLite: `ALTER TABLE devices ADD COLUMN user_id TEXT;`
-	// We run these and ignore "duplicate column" errors.
+	// Migrations
 	migrations := []string{
 		"ALTER TABLE devices ADD COLUMN user_id TEXT",
 		"ALTER TABLE devices ADD COLUMN claim_token TEXT",
 		"ALTER TABLE files ADD COLUMN user_id TEXT",
+		"ALTER TABLE devices ADD COLUMN type TEXT DEFAULT 'agent'", 
 	}
 	for _, m := range migrations {
 		db.Exec(m) // Ignore errors

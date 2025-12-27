@@ -15,11 +15,11 @@ import (
 
 type Receiver struct {
 	Client *client.Client
-	Store  *storage.Store
+	Store  storage.ChunkStore
 	MyID   string
 }
 
-func NewReceiver(c *client.Client, s *storage.Store, myID string) *Receiver {
+func NewReceiver(c *client.Client, s storage.ChunkStore, myID string) *Receiver {
 	return &Receiver{Client: c, Store: s, MyID: myID}
 }
 

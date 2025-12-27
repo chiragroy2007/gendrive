@@ -18,7 +18,9 @@ import (
 )
 
 func main() {
-	serverURL := flag.String("server", "http://localhost:8080", "Control Server URL")
+	mode := flag.String("mode", "disk", "Storage mode: 'disk' or 'gdrive'")
+	credsPath := flag.String("creds", "credentials.json", "Path to GDrive credentials.json (required for gdrive mode)")
+	serverURL := flag.String("server", "http://localhost:8085", "Control Server URL")
 	dataDir := flag.String("data", "./agent_data", "Data directory")
 	
 	// Default name with random suffix to avoid collisions
@@ -58,9 +60,20 @@ func main() {
 	}
 
 	// 3. Storage & Receiver
-	store, err := storage.NewStore(*dataDir)
-	if err != nil {
-		log.Fatal(err)
+	var store storage.ChunkStore
+
+	if *mode == "gdrive" {
+		log.Println("Initializing Google Drive Store...")
+		gStore, err := storage.NewGDriveStore(*credsPath)
+		if err != nil {
+			log.Fatalf("Failed to init GDrive: %v", err)
+		}
+		store = gStore
+	} else {
+		store, err = storage.NewDiskStore(*dataDir)
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 
 	receiver := bg.NewReceiver(c, store, id.DeviceID)

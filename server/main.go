@@ -16,7 +16,8 @@ func main() {
 	}
 
 	database := db.InitDB("./data/p2p.db")
-	server := api.NewServer(database)
+    gdriveManager := api.NewGDriveManager(database) // Init here
+	server := api.NewServer(database, gdriveManager)
 	authHandler := api.NewAuthHandler(database)
 
 	// Public Auth
@@ -50,6 +51,11 @@ func main() {
 	})
 
 	// Public / Agent API
+	// Public / Agent API
+    // GDrive Auth - MUST be authenticated to link to user account
+    http.HandleFunc("/api/gdrive/auth", auth(gdriveManager.HandleAuth))
+    http.HandleFunc("/api/gdrive/callback", auth(gdriveManager.HandleCallback))
+
 	http.HandleFunc("/register", server.RegisterDevice)
 	http.HandleFunc("/heartbeat", server.Heartbeat)
 	http.HandleFunc("/peers", server.GetPeers)

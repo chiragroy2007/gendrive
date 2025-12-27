@@ -87,44 +87,49 @@ func (s *Server) UploadFile(w http.ResponseWriter, r *http.Request) {
 			// Log error
 		}
 
-		// Distribute via Relay with Retry
-		relayMsg := shared.RelayMessage{
-			Type:    shared.RelayTypeStore,
-			Payload: chunkData,
-		}
-		msgBytes, _ := json.Marshal(relayMsg)
-
+		// Distribute
 		sent := false
-		// Shuffle devices for load balancing
-		// Sort devices by load (Least Loaded First)
-		// We fetch load real-time or cached? Real-time is safer for "absolute allocation".
-		loads := s.getDeviceLoads(devices)
-		
-		// Sort: Ascending load
-		shared.SortDevicesByLoad(devices, loads)
+        // Determine target device by sequence
+        // This ensures uniform distribution: 0->DevA, 1->DevB, 2->DevA...
+        if len(devices) > 0 {
+            targetIndex := sequence % len(devices)
+            // We try the target device first. If it fails, we try others.
+            // Create a sorted list starting with targetIndex
+            sortedDevices := append(devices[targetIndex:], devices[:targetIndex]...)
 
-		for _, device := range devices {
-			if s.injectRelayMessage(device.ID, "inbox", msgBytes) {
-				// WAIT FOR ACK (Strict Alloc)
-				// Agent must confirm storage
-				_, err := s.waitForRelayData("server", "ack-"+chunkID, 30*time.Second)
-				if err == nil {
-					// Success!
-					_, err = s.DB.Exec("INSERT OR IGNORE INTO chunk_locations (chunk_id, device_id) VALUES (?, ?)",
-						chunkID, device.ID)
-					sent = true
-					break // Success, move to next chunk
-				} else {
-					fmt.Printf("Device %s failed to ACK chunk %s (Timeout)\n", device.ID, chunkID)
-					// Loop continues to next device...
-				}
-			}
-		}
+            for _, device := range sortedDevices {
+                if device.Type == "gdrive" {
+                    // Upload directly to GDrive
+                    err := s.GDrive.UploadChunk(userID, chunkID, chunkData)
+                    if err == nil {
+                        s.DB.Exec("INSERT OR IGNORE INTO chunk_locations (chunk_id, device_id) VALUES (?, ?)", chunkID, device.ID)
+                        sent = true
+                        break
+                    } else {
+                        fmt.Printf("GDrive Upload Failed for chunk %s: %v\n", chunkID, err)
+                    }
+                } else {
+                    // Agent Relay
+                    msgBytes, _ := json.Marshal(shared.RelayMessage{Type: shared.RelayTypeStore, Payload: chunkData})
+                    if s.injectRelayMessage(device.ID, "inbox", msgBytes) {
+                        _, err := s.waitForRelayData("server", "ack-"+chunkID, 30*time.Second)
+                        if err == nil {
+                            s.DB.Exec("INSERT OR IGNORE INTO chunk_locations (chunk_id, device_id) VALUES (?, ?)", chunkID, device.ID)
+                            sent = true
+                            break
+                        } else {
+                            fmt.Printf("Device %s failed to ACK %s\n", device.ID, chunkID)
+                        }
+                    }
+                }
+            }
+        }
 
 		if !sent {
-			http.Error(w, "Failed to store chunk on any device", http.StatusServiceUnavailable)
+			http.Error(w, "Failed to store chunk", http.StatusServiceUnavailable)
 			return
 		}
+
 
 		sequence++
 		if err == io.EOF {
@@ -141,7 +146,7 @@ func (s *Server) UploadFile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) getUserOnlineDevices(userID string) ([]shared.Device, error) {
-	rows, err := s.DB.Query("SELECT id, name FROM devices WHERE user_id = ? AND online = 1", userID)
+	rows, err := s.DB.Query("SELECT id, name, type FROM devices WHERE user_id = ? AND online = 1", userID)
 	if err != nil {
 		return nil, err
 	}
@@ -150,7 +155,7 @@ func (s *Server) getUserOnlineDevices(userID string) ([]shared.Device, error) {
 	var devices []shared.Device
 	for rows.Next() {
 		var d shared.Device
-		rows.Scan(&d.ID, &d.Name)
+		rows.Scan(&d.ID, &d.Name, &d.Type)
 		devices = append(devices, d)
 	}
 	return devices, nil

@@ -86,29 +86,46 @@ func (s *Server) DownloadFile(w http.ResponseWriter, r *http.Request) {
 		success := false
 
 		for _, deviceID := range devices {
-			// Request Chunk
-			reqMsg := shared.RelayMessage{
-				Type:    shared.RelayTypeRetrieve,
-				Payload: []byte(chunkID),
-			}
-			reqBytes, _ := json.Marshal(reqMsg)
-			
-			// Try to inject (skip if buffer full)
-			if !s.injectRelayMessage(deviceID, "inbox", reqBytes) {
-				continue
-			}
+            // Get Device Type (Optimization: fetch type in previous query or query here)
+            // Let's query type here for safety or refactor previous query. 
+            // Previous query just returned 'id'. Let's refactor previous query.
+            var dType string
+            s.DB.QueryRow("SELECT type FROM devices WHERE id = ?", deviceID).Scan(&dType)
 
-			// Wait for Data
-			data, err := s.waitForRelayData("server", "chunk-"+chunkID, 15*time.Second)
-			if err == nil {
-				chunkData = data
-				success = true
-				break
-			}
-			// If error (timeout), loop to next device
+            if dType == "gdrive" {
+                data, err := s.GDrive.DownloadChunk(userID, chunkID)
+                if err == nil {
+                    chunkData = data
+                    success = true
+                    break
+                } else {
+                    fmt.Printf("GDrive Download Failed for chunk %s: %v\n", chunkID, err)
+                }
+            } else {
+                // Request Chunk
+                reqMsg := shared.RelayMessage{
+                    Type:    shared.RelayTypeRetrieve,
+                    Payload: []byte(chunkID),
+                }
+                reqBytes, _ := json.Marshal(reqMsg)
+                
+                // Try to inject (skip if buffer full)
+                if !s.injectRelayMessage(deviceID, "inbox", reqBytes) {
+                    continue
+                }
+
+                // Wait for Data
+                data, err := s.waitForRelayData("server", "chunk-"+chunkID, 15*time.Second)
+                if err == nil {
+                    chunkData = data
+                    success = true
+                    break
+                }
+            }
 		}
 
 		if !success {
+            fmt.Printf("Failed to retrieve chunk %d (%s) from any peer\n", seq, chunkID)
 			http.Error(w, fmt.Sprintf("Failed to retrieve chunk %d from any peer", seq), http.StatusGatewayTimeout)
 			return
 		}
@@ -176,13 +193,27 @@ func (s *Server) DeleteFile(w http.ResponseWriter, r *http.Request) {
 		for rows.Next() {
 			var deviceID, chunkID string
 			if err := rows.Scan(&deviceID, &chunkID); err == nil {
-				// Send Delete Command (Async/Best Effort)
-				msg := shared.RelayMessage{
-					Type:    shared.RelayTypeDelete,
-					Payload: []byte(chunkID),
-				}
-				bytes, _ := json.Marshal(msg)
-				s.injectRelayMessage(deviceID, "inbox", bytes)
+                // Check if GDrive (could query DB or check ID prefix, ID prefix is faster/cheaper if consistent)
+                // We set ID as "GDrive-"+UserID in gdrive.go
+                // Let's rely on DB type check for correctness or just try/catch?
+                // DB Type check is cleaner.
+                var dType string
+                s.DB.QueryRow("SELECT type FROM devices WHERE id = ?", deviceID).Scan(&dType)
+
+                if dType == "gdrive" {
+                    // Delete from GDrive
+                    // We need the folderID? GDriveManager handles lookup.
+                    // We need userID for the client.
+                    s.GDrive.DeleteChunk(userID, chunkID)
+                } else {
+				    // Send Delete Command (Async/Best Effort) to Agent
+				    msg := shared.RelayMessage{
+					    Type:    shared.RelayTypeDelete,
+					    Payload: []byte(chunkID),
+				    }
+				    bytes, _ := json.Marshal(msg)
+				    s.injectRelayMessage(deviceID, "inbox", bytes)
+                }
 			}
 		}
 	}
