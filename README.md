@@ -8,6 +8,7 @@ GenDrive is a distributed file system implementation that aggregates storage cap
 The system is designed with a focus on resilience, data sovereignty, and minimal configuration, acting as a private "cloud" infrastructure on your own hardware.
 
 ViewDemo: https://drive.chirag404.me
+About GenDrive: https://www.chirag404.me/gendrive
 
 <img width="1500" height="900" alt="image" src="https://github.com/user-attachments/assets/91f2c590-5868-4d82-b792-2750d385f38b" />
 
